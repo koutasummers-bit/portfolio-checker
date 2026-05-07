@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>ポートフォリオ株価チェッカー</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --surface-2: #f0f2f7;
+    --border: #e3e6ee;
+    --text: #1a1d24;
+    --text-sub: #6b7280;
+    --up: #d33a2c;
+    --up-bg: #fdecea;
+    --down: #1a73e8;
+    --down-bg: #e8f0fe;
+    --flat: #6b7280;
+    --flat-bg: #eceef3;
+    --accent: #111827;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 14px rgba(15, 23, 42, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --surface: #171a21;
+      --surface-2: #1f232c;
+      --border: #2a2f3a;
+      --text: #e8eaf0;
+      --text-sub: #9aa3b2;
+      --up: #ff6b5e;
+      --up-bg: rgba(255, 107, 94, .12);
+      --down: #6aa6ff;
+      --down-bg: rgba(106, 166, 255, .12);
+      --flat: #9aa3b2;
+      --flat-bg: rgba(154, 163, 178, .14);
+      --accent: #e8eaf0;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    line-height: 1.4;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px 16px 24px;
+  }
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 4px 16px;
+  }
+  header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: .02em;
+  }
+  header .meta {
+    font-size: 12px;
+    color: var(--text-sub);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #94a3b8;
+    display: inline-block;
+  }
+  header .dot.live { background: #22c55e; }
+  header .dot.error { background: #ef4444; }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 12px;
+    align-items: center;
+  }
+  .name {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  .name .nm {
+    font-weight: 700;
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .name .code {
+    font-size: 11px;
+    color: var(--text-sub);
+    font-feature-settings: "tnum";
+  }
+
+  .price {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 22px;
+    font-weight: 700;
+    text-align: right;
+    font-feature-settings: "tnum";
+    letter-spacing: .01em;
+  }
+  .price .yen {
+    font-size: 13px;
+    color: var(--text-sub);
+    font-weight: 500;
+    margin-left: 2px;
+  }
+
+  .sub {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    font-feature-settings: "tnum";
+    line-height: 1;
+  }
+  .badge.up { color: var(--up); background: var(--up-bg); }
+  .badge.down { color: var(--down); background: var(--down-bg); }
+  .badge.flat { color: var(--flat); background: var(--flat-bg); }
+  .badge .arrow { font-size: 11px; line-height: 1; }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 0%, rgba(255,255,255,.4) 50%, var(--surface-2) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    color: transparent;
+    border-radius: 8px;
+    display: inline-block;
+    min-width: 60px;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .err {
+    color: var(--text-sub);
+    font-size: 12px;
+    text-align: right;
+  }
+
+  footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) 70%, rgba(0,0,0,0));
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .refresh {
+    pointer-events: auto;
+    width: 100%;
+    max-width: 448px;
+    height: 52px;
+    border: none;
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform .08s ease, opacity .15s ease;
+  }
+  .refresh:active { transform: scale(.98); }
+  .refresh:disabled { opacity: .6; cursor: progress; }
+  .refresh .spin {
+    width: 16px; height: 16px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: rot .9s linear infinite;
+    display: none;
+  }
+  .refresh.loading .spin { display: inline-block; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  .note {
+    text-align: center;
+    color: var(--text-sub);
+    font-size: 11px;
+    padding: 8px 4px 0;
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>ポートフォリオ</h1>
+      <div class="meta">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">読み込み中…</span>
+      </div>
+    </header>
+
+    <div class="list" id="list"></div>
+
+    <p class="note">出典: Stooq（約15分遅延の参考値）</p>
+  </div>
+
+  <footer>
+    <button class="refresh" id="refresh" type="button">
+      <span class="spin" aria-hidden="true"></span>
+      <span class="label">更新</span>
+    </button>
+  </footer>
+
+<script>
+(() => {
+  const HOLDINGS = [
+    { code: "7011", name: "三菱重工",      sym: "7011.JP" },
+    { code: "7012", name: "川崎重工",      sym: "7012.JP" },
+    { code: "7013", name: "IHI",           sym: "7013.JP" },
+    { code: "5713", name: "JX金属",        sym: "5713.JP" },
+    { code: "6857", name: "アドバンテスト", sym: "6857.JP" },
+    { code: "6501", name: "日立",          sym: "6501.JP" },
+    { code: "8001", name: "伊藤忠",        sym: "8001.JP" },
+  ];
+
+  const yen = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 });
+  const pct = new Intl.NumberFormat("ja-JP", {
+    minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "always",
+  });
+  const yenSigned = new Intl.NumberFormat("ja-JP", {
+    maximumFractionDigits: 1, signDisplay: "always",
+  });
+
+  const listEl = document.getElementById("list");
+  const refreshBtn = document.getElementById("refresh");
+  const statusDot = document.getElementById("status-dot");
+  const statusText = document.getElementById("status-text");
+
+  function renderSkeletons() {
+    listEl.innerHTML = HOLDINGS.map(h => `
+      <article class="card" data-code="${h.code}">
+        <div class="name">
+          <span class="nm">${h.name}</span>
+          <span class="code">${h.code}</span>
+        </div>
+        <div class="price"><span class="skeleton">0,000</span></div>
+        <div class="sub"><span class="badge flat skeleton">読み込み中</span></div>
+      </article>
+    `).join("");
+  }
+
+  function renderRow(h, data) {
+    const card = listEl.querySelector(`.card[data-code="${h.code}"]`);
+    if (!card) return;
+    if (data.error) {
+      card.innerHTML = `
+        <div class="name">
+          <span class="nm">${h.name}</span>
+          <span class="code">${h.code}</span>
+        </div>
+        <div class="price"><span class="err">—</span></div>
+        <div class="sub"><span class="err">取得失敗</span></div>
+      `;
+      return;
+    }
+    const { price, prevClose } = data;
+    const diff = price - prevClose;
+    const ratio = prevClose ? (diff / prevClose) * 100 : 0;
+    const dir = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+    const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "—";
+
+    card.innerHTML = `
+      <div class="name">
+        <span class="nm">${h.name}</span>
+        <span class="code">${h.code}</span>
+      </div>
+      <div class="price">${yen.format(price)}<span class="yen">円</span></div>
+      <div class="sub">
+        <span class="badge ${dir}">
+          <span class="arrow">${arrow}</span>
+          ${dir === "flat" ? "0" : yenSigned.format(diff)}
+          <span style="opacity:.7;font-weight:600;">(${dir === "flat" ? "0.00%" : pct.format(ratio) + "%"})</span>
+        </span>
+      </div>
+    `;
+  }
+
+  function parseCSV(text) {
+    return text.trim().split(/\r?\n/).map(line => line.split(","));
+  }
+
+  async function fetchText(url, timeoutMs = 10000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.text();
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  async function fetchQuote(sym) {
+    // Latest quote: Symbol,Date,Time,Open,High,Low,Close,Volume,Name
+    const liveUrl = `https://stooq.com/q/l/?s=${encodeURIComponent(sym.toLowerCase())}&f=sd2t2ohlcvn&h&e=csv`;
+    // Daily history: Date,Open,High,Low,Close,Volume
+    const histUrl = `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym.toLowerCase())}&i=d`;
+
+    const [liveTxt, histTxt] = await Promise.all([
+      fetchText(liveUrl),
+      fetchText(histUrl),
+    ]);
+
+    const liveRows = parseCSV(liveTxt);
+    const histRows = parseCSV(histTxt);
+
+    if (liveRows.length < 2) throw new Error("no live data");
+    const liveHeader = liveRows[0].map(s => s.trim().toLowerCase());
+    const liveRow = liveRows[1];
+    const closeIdx = liveHeader.indexOf("close");
+    const price = Number(liveRow[closeIdx]);
+    if (!isFinite(price)) throw new Error("invalid price");
+
+    if (histRows.length < 2) throw new Error("no history");
+    // The very last row is today's (or latest trading day's) close.
+    // The previous row is the prior trading day's close.
+    const lastHist = histRows[histRows.length - 1];
+    const prevHist = histRows[histRows.length - 2];
+
+    // Determine prev close: if the last history date matches today's quote date,
+    // use the row before it; otherwise the last history row is the prior session.
+    const liveDateIdx = liveHeader.indexOf("date");
+    const liveDate = liveRow[liveDateIdx];
+    const histLastDate = lastHist[0];
+    const prevClose = (liveDate && histLastDate && liveDate === histLastDate)
+      ? Number(prevHist[4])
+      : Number(lastHist[4]);
+
+    if (!isFinite(prevClose) || prevClose <= 0) throw new Error("invalid prev close");
+    return { price, prevClose };
+  }
+
+  function setStatus(state, text) {
+    statusDot.className = "dot" + (state ? " " + state : "");
+    statusText.textContent = text;
+  }
+
+  async function refreshAll() {
+    refreshBtn.classList.add("loading");
+    refreshBtn.disabled = true;
+    setStatus("", "更新中…");
+
+    let okCount = 0;
+    await Promise.all(HOLDINGS.map(async (h) => {
+      try {
+        const data = await fetchQuote(h.sym);
+        renderRow(h, data);
+        okCount++;
+      } catch (e) {
+        renderRow(h, { error: true });
+      }
+    }));
+
+    const now = new Date();
+    const time = now.toLocaleTimeString("ja-JP", {
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    });
+    if (okCount === HOLDINGS.length) {
+      setStatus("live", `最終更新 ${time}`);
+    } else if (okCount > 0) {
+      setStatus("error", `一部取得失敗 (${okCount}/${HOLDINGS.length})  ${time}`);
+    } else {
+      setStatus("error", `取得失敗  ${time}`);
+    }
+
+    refreshBtn.classList.remove("loading");
+    refreshBtn.disabled = false;
+  }
+
+  refreshBtn.addEventListener("click", refreshAll);
+  renderSkeletons();
+  refreshAll();
+})();
+</script>
+</body>
+</html>
