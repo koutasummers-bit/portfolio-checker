@@ -3,43 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f1115">
+<meta name="theme-color" content="#ffffff">
 <title>ポートフォリオ株価チェッカー</title>
 <style>
   :root {
-    --bg: #f6f7fb;
+    --bg: #ffffff;
     --surface: #ffffff;
-    --surface-2: #f0f2f7;
+    --surface-2: #f3f4f8;
     --border: #e3e6ee;
     --text: #1a1d24;
     --text-sub: #6b7280;
     --up: #d33a2c;
     --up-bg: #fdecea;
+    --up-card: #fff3f0;
+    --up-border: #f5c8c0;
     --down: #1a73e8;
     --down-bg: #e8f0fe;
+    --down-card: #f0f5ff;
+    --down-border: #c8d6f5;
     --flat: #6b7280;
     --flat-bg: #eceef3;
     --accent: #111827;
     --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 14px rgba(15, 23, 42, .06);
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0f1115;
-      --surface: #171a21;
-      --surface-2: #1f232c;
-      --border: #2a2f3a;
-      --text: #e8eaf0;
-      --text-sub: #9aa3b2;
-      --up: #ff6b5e;
-      --up-bg: rgba(255, 107, 94, .12);
-      --down: #6aa6ff;
-      --down-bg: rgba(106, 166, 255, .12);
-      --flat: #9aa3b2;
-      --flat-bg: rgba(154, 163, 178, .14);
-      --accent: #e8eaf0;
-      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
-    }
-  }
+  html { color-scheme: light; }
 
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -105,7 +92,10 @@
     grid-template-rows: auto auto;
     gap: 4px 12px;
     align-items: center;
+    transition: background-color .25s ease, border-color .25s ease;
   }
+  .card.up   { background: var(--up-card);   border-color: var(--up-border); }
+  .card.down { background: var(--down-card); border-color: var(--down-border); }
   .name {
     grid-column: 1;
     grid-row: 1;
@@ -256,7 +246,7 @@
 
     <div class="list" id="list"></div>
 
-    <p class="note">出典: Yahoo Finance（参考値・公開CORSプロキシ経由） / build v2026-05-07</p>
+    <p class="note">出典: Yahoo Finance（参考値・公開CORSプロキシ経由） / build v2026-05-07b</p>
   </div>
 
   <footer>
@@ -308,6 +298,7 @@
     const card = listEl.querySelector(`.card[data-code="${h.code}"]`);
     if (!card) return;
     if (data.error) {
+      card.className = "card";
       const msg = (data.message || "取得失敗").toString().slice(0, 140);
       card.innerHTML = `
         <div class="name">
@@ -325,6 +316,7 @@
     const dir = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
     const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "—";
 
+    card.className = "card " + dir;
     card.innerHTML = `
       <div class="name">
         <span class="nm">${h.name}</span>
