@@ -185,8 +185,11 @@
 
   .err {
     color: var(--text-sub);
-    font-size: 12px;
+    font-size: 11px;
     text-align: right;
+    word-break: break-all;
+    line-height: 1.3;
+    max-width: 100%;
   }
 
   footer {
@@ -305,7 +308,7 @@
     const card = listEl.querySelector(`.card[data-code="${h.code}"]`);
     if (!card) return;
     if (data.error) {
-      const msg = (data.message || "取得失敗").toString().slice(0, 60);
+      const msg = (data.message || "取得失敗").toString().slice(0, 140);
       card.innerHTML = `
         <div class="name">
           <span class="nm">${h.name}</span>
@@ -357,35 +360,38 @@
   }
 
   // Yahoo Finance requires a CORS proxy from the browser. Cascade through
-  // multiple public proxies and cache whichever responds first.
+  // multiple public proxies; validate that each one returned parseable JSON.
   const PROXIES = [
-    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
-    (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
+    { name: "allorigins", wrap: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+    { name: "corsproxy",  wrap: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}` },
+    { name: "codetabs",   wrap: (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}` },
+    { name: "thingproxy", wrap: (u) => `https://thingproxy.freeboard.io/fetch/${u}` },
   ];
   let preferredProxy = 0;
 
-  async function fetchSmart(url) {
-    let lastErr;
+  async function fetchJsonSmart(url) {
+    let lastErr, lastBody = "", lastProxy = "";
     const order = [preferredProxy, ...PROXIES.map((_, i) => i).filter(i => i !== preferredProxy)];
     for (const i of order) {
+      const p = PROXIES[i];
       try {
-        const txt = await fetchText(PROXIES[i](url));
+        const txt = await fetchText(p.wrap(url));
+        lastBody = txt; lastProxy = p.name;
+        const json = JSON.parse(txt);
         preferredProxy = i;
-        return txt;
+        return json;
       } catch (e) {
         lastErr = e;
       }
     }
-    throw lastErr || new Error("all proxies failed");
+    const sample = lastBody.slice(0, 80).replace(/\s+/g, " ").trim();
+    const reason = (lastErr && lastErr.message) || "unknown";
+    throw new Error(`${lastProxy || "no-proxy"}: ${reason}${sample ? " | " + sample : ""}`);
   }
 
   async function fetchQuote(sym) {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`;
-    const txt = await fetchSmart(url);
-    let json;
-    try { json = JSON.parse(txt); } catch (e) { throw new Error("JSON parse error"); }
+    const json = await fetchJsonSmart(url);
     const result = json && json.chart && json.chart.result && json.chart.result[0];
     if (!result) {
       const errDesc = json && json.chart && json.chart.error && json.chart.error.description;
