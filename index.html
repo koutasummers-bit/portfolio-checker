@@ -253,7 +253,7 @@
 
     <div class="list" id="list"></div>
 
-    <p class="note">出典: Stooq（約15分遅延の参考値）</p>
+    <p class="note">出典: Stooq（約15分遅延の参考値）／ 通信は直接または公開CORSプロキシ経由</p>
   </div>
 
   <footer>
@@ -341,16 +341,41 @@
     return text.trim().split(/\r?\n/).map(line => line.split(","));
   }
 
-  async function fetchText(url, timeoutMs = 10000) {
+  async function fetchText(url, timeoutMs = 8000) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
-      return await res.text();
+      const text = await res.text();
+      if (!text || text.trim().length === 0) throw new Error("empty body");
+      return text;
     } finally {
       clearTimeout(t);
     }
+  }
+
+  // Cascade: direct → corsproxy.io → allorigins.win. Cache the first success.
+  const PROXIES = [
+    (u) => u,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  ];
+  let preferredProxy = 0;
+
+  async function fetchSmart(url) {
+    let lastErr;
+    const order = [preferredProxy, ...PROXIES.map((_, i) => i).filter(i => i !== preferredProxy)];
+    for (const i of order) {
+      try {
+        const txt = await fetchText(PROXIES[i](url));
+        preferredProxy = i;
+        return txt;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("all transports failed");
   }
 
   async function fetchQuote(sym) {
@@ -360,8 +385,8 @@
     const histUrl = `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym.toLowerCase())}&i=d`;
 
     const [liveTxt, histTxt] = await Promise.all([
-      fetchText(liveUrl),
-      fetchText(histUrl),
+      fetchSmart(liveUrl),
+      fetchSmart(histUrl),
     ]);
 
     const liveRows = parseCSV(liveTxt);
