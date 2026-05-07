@@ -253,7 +253,7 @@
 
     <div class="list" id="list"></div>
 
-    <p class="note">出典: Stooq（約15分遅延の参考値）／ 通信は直接または公開CORSプロキシ経由</p>
+    <p class="note">出典: Yahoo Finance（参考値・公開CORSプロキシ経由）</p>
   </div>
 
   <footer>
@@ -266,13 +266,13 @@
 <script>
 (() => {
   const HOLDINGS = [
-    { code: "7011", name: "三菱重工",      sym: "7011.JP" },
-    { code: "7012", name: "川崎重工",      sym: "7012.JP" },
-    { code: "7013", name: "IHI",           sym: "7013.JP" },
-    { code: "5713", name: "JX金属",        sym: "5713.JP" },
-    { code: "6857", name: "アドバンテスト", sym: "6857.JP" },
-    { code: "6501", name: "日立",          sym: "6501.JP" },
-    { code: "8001", name: "伊藤忠",        sym: "8001.JP" },
+    { code: "7011", name: "三菱重工",      sym: "7011.T" },
+    { code: "7012", name: "川崎重工",      sym: "7012.T" },
+    { code: "7013", name: "IHI",           sym: "7013.T" },
+    { code: "5713", name: "JX金属",        sym: "5713.T" },
+    { code: "6857", name: "アドバンテスト", sym: "6857.T" },
+    { code: "6501", name: "日立",          sym: "6501.T" },
+    { code: "8001", name: "伊藤忠",        sym: "8001.T" },
   ];
 
   const yen = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 });
@@ -305,13 +305,14 @@
     const card = listEl.querySelector(`.card[data-code="${h.code}"]`);
     if (!card) return;
     if (data.error) {
+      const msg = (data.message || "取得失敗").toString().slice(0, 60);
       card.innerHTML = `
         <div class="name">
           <span class="nm">${h.name}</span>
           <span class="code">${h.code}</span>
         </div>
         <div class="price"><span class="err">—</span></div>
-        <div class="sub"><span class="err">取得失敗</span></div>
+        <div class="sub"><span class="err">${msg}</span></div>
       `;
       return;
     }
@@ -355,11 +356,13 @@
     }
   }
 
-  // Cascade: direct → corsproxy.io → allorigins.win. Cache the first success.
+  // Yahoo Finance requires a CORS proxy from the browser. Cascade through
+  // multiple public proxies and cache whichever responds first.
   const PROXIES = [
-    (u) => u,
     (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
     (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
   ];
   let preferredProxy = 0;
 
@@ -375,45 +378,23 @@
         lastErr = e;
       }
     }
-    throw lastErr || new Error("all transports failed");
+    throw lastErr || new Error("all proxies failed");
   }
 
   async function fetchQuote(sym) {
-    // Latest quote: Symbol,Date,Time,Open,High,Low,Close,Volume,Name
-    const liveUrl = `https://stooq.com/q/l/?s=${encodeURIComponent(sym.toLowerCase())}&f=sd2t2ohlcvn&h&e=csv`;
-    // Daily history: Date,Open,High,Low,Close,Volume
-    const histUrl = `https://stooq.com/q/d/l/?s=${encodeURIComponent(sym.toLowerCase())}&i=d`;
-
-    const [liveTxt, histTxt] = await Promise.all([
-      fetchSmart(liveUrl),
-      fetchSmart(histUrl),
-    ]);
-
-    const liveRows = parseCSV(liveTxt);
-    const histRows = parseCSV(histTxt);
-
-    if (liveRows.length < 2) throw new Error("no live data");
-    const liveHeader = liveRows[0].map(s => s.trim().toLowerCase());
-    const liveRow = liveRows[1];
-    const closeIdx = liveHeader.indexOf("close");
-    const price = Number(liveRow[closeIdx]);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`;
+    const txt = await fetchSmart(url);
+    let json;
+    try { json = JSON.parse(txt); } catch (e) { throw new Error("JSON parse error"); }
+    const result = json && json.chart && json.chart.result && json.chart.result[0];
+    if (!result) {
+      const errDesc = json && json.chart && json.chart.error && json.chart.error.description;
+      throw new Error(errDesc || "no data");
+    }
+    const meta = result.meta || {};
+    const price = Number(meta.regularMarketPrice);
+    const prevClose = Number(meta.chartPreviousClose != null ? meta.chartPreviousClose : meta.previousClose);
     if (!isFinite(price)) throw new Error("invalid price");
-
-    if (histRows.length < 2) throw new Error("no history");
-    // The very last row is today's (or latest trading day's) close.
-    // The previous row is the prior trading day's close.
-    const lastHist = histRows[histRows.length - 1];
-    const prevHist = histRows[histRows.length - 2];
-
-    // Determine prev close: if the last history date matches today's quote date,
-    // use the row before it; otherwise the last history row is the prior session.
-    const liveDateIdx = liveHeader.indexOf("date");
-    const liveDate = liveRow[liveDateIdx];
-    const histLastDate = lastHist[0];
-    const prevClose = (liveDate && histLastDate && liveDate === histLastDate)
-      ? Number(prevHist[4])
-      : Number(lastHist[4]);
-
     if (!isFinite(prevClose) || prevClose <= 0) throw new Error("invalid prev close");
     return { price, prevClose };
   }
@@ -435,7 +416,7 @@
         renderRow(h, data);
         okCount++;
       } catch (e) {
-        renderRow(h, { error: true });
+        renderRow(h, { error: true, message: (e && e.message) || String(e) });
       }
     }));
 
